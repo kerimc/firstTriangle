@@ -9,6 +9,7 @@
 // GLOBALS
 GLuint program;
 GLint attribute_coord2d;
+GLuint vbo_triangle;
 
 int init_resources()
 {
@@ -20,13 +21,14 @@ int init_resources()
 #else
 		"#version 130 \n"
 #endif
-	"attribute vec2 coord2d; \n"
-	    "in vec4 position; \n"
+	//attribute vec3 coord2d; \n"
+		"in vec4 position; \n"
 		"out vec4 color; \n"
 		"void main() { \n"
-	" gl_Position = vec4(coord2d, 0.0, 1.0); \n"
-	" color = vec4(coord2d, 0.0, 1.0);"
-	//	"gl_Position = position; \n"
+	// gl_Position = vec4(coord2d, 1.0); \n"
+			"gl_Position = position; \n"
+		" color = position; \n"
+	
 		"} \n";
 	glShaderSource(vs, 1, &vsSource, NULL);
 	glCompileShader(vs);
@@ -35,91 +37,104 @@ int init_resources()
 	{
 		char log[300];
 		GLsizeiptr logLen;
-		
+
 		glGetShaderInfoLog(vs,300,&logLen, log); 
 		fprintf(stderr, vsSource);
 		fprintf(stderr, log);
-		
+
 		return 0;
 	}
 	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
 	const char * fsSource =
-    "#version 130           \n"
-	" in vec4 color; \n"
-    "void main(void) {       \n "
- //   "  gl_FragColor = color; \n"
-" gl_FragColor[0] = gl_FragCoord.x/640.0; \n"
-"gl_FragColor[1] = gl_FragCoord.y/480.0; \n"
-"gl_FragColor[2] = 0.5; \n"
-    "}";
-  glShaderSource(fs, 1, &fsSource, NULL);
-  glCompileShader(fs);
-  glGetShaderiv(fs, GL_COMPILE_STATUS, &compileOk);
-  if (!compileOk) {
-   char log[300];
+		"#version 130           \n"
+		" in vec4 color; \n"
+		"void main(void) {       \n "
+		   "  gl_FragColor = color; \n"
+	/*	" gl_FragColor[0] = gl_FragCoord.x/640.0; \n"
+		"gl_FragColor[1] = gl_FragCoord.y/480.0; \n"
+		"gl_FragColor[2] = 0.5; \n"
+		"gl_FragColor[3] = floor(mod(gl_FragCoord.y, 2.0)); \n"*/
+		"}";
+	glShaderSource(fs, 1, &fsSource, NULL);
+	glCompileShader(fs);
+	glGetShaderiv(fs, GL_COMPILE_STATUS, &compileOk);
+	if (!compileOk) {
+		char log[300];
 		GLsizeiptr logLen;
-		
+
 		glGetShaderInfoLog(fs,300,&logLen, log); 
 		fprintf(stderr, fsSource);
 		fprintf(stderr, log);
-    return 0;
-  }
-  program = glCreateProgram();
-  glAttachShader(program, vs);
-  glAttachShader(program, fs);
-  glLinkProgram(program);
-  glGetProgramiv(program, GL_LINK_STATUS, &linkOk);
-  if (!linkOk) {
-    fprintf(stderr, "glLinkProgram:");
-    return 0;
-  }
-  const char* attribute_name = "coord2d";
-  attribute_coord2d = glGetAttribLocation(program, attribute_name);
-  if (attribute_coord2d == -1) {
-    fprintf(stderr, "Could not bind attribute %s\n", attribute_name);
-    return 0;
-  }
+		return 0;
+	}
+	program = glCreateProgram();
+	glAttachShader(program, vs);
+	glAttachShader(program, fs);
+	glLinkProgram(program);
+	glGetProgramiv(program, GL_LINK_STATUS, &linkOk);
+	if (!linkOk) {
+		fprintf(stderr, "glLinkProgram:");
+		return 0;
+	}
+	/* -------------------------------
+
+	-----------------------------------------------*/
+	GLfloat triangle_vertices[] = {
+		0.0,  0.8, 1.0, 1.0,
+		-0.8, -0.8, 0.0, 1.0,
+		0.8, -0.8, -1.0, 1.0,
+
+	};
+	glGenBuffers(1, &vbo_triangle);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), 
+		triangle_vertices, GL_STATIC_DRAW);
+	const char* attribute_name = "position";
+	attribute_coord2d = glGetAttribLocation(program, attribute_name);
+	if (attribute_coord2d == -1) {
+		fprintf(stderr, "Could not bind attribute %s\n", attribute_name);
+		return 0;
+	}
 
 	return 1;
 }
 void onDisplay()
 {
-  /* Clear the background as white */
-  glClearColor(1.0, 1.0, 1.0, 1.0);
-  glClear(GL_COLOR_BUFFER_BIT);
- 
-  glUseProgram(program);
-  glEnableVertexAttribArray(attribute_coord2d);
-  GLfloat triangle_vertices[] = {
-     0.0,  0.8,
-    -0.8, -0.8,
-     0.8, -0.8,
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	/* Clear the background as white */
+	glClearColor(1.0, 1.0, 1.0, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-  };
-  /* Describe our vertices array to OpenGL (it can't guess its format automatically) */
-  glVertexAttribPointer(
-    attribute_coord2d, // attribute
-    2,                 // number of elements per vertex, here (x,y, z)
-    GL_FLOAT,          // the type of each element
-    GL_FALSE,          // take our values as-is
-    0,                 // no extra data between each position
-    triangle_vertices  // pointer to the C array
- );
-   /* Push each element in buffer_vertices to the vertex shader */
-  glDrawArrays(GL_TRIANGLES, 0, 3);
-  glDisableVertexAttribArray(attribute_coord2d);
+	glUseProgram(program);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+	glEnableVertexAttribArray(attribute_coord2d);
 
-   glutSwapBuffers();
+	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
+	glVertexAttribPointer(
+		attribute_coord2d, // attribute
+		4,                 // number of elements per vertex, here (x,y, z)
+		GL_FLOAT,          // the type of each element
+		GL_FALSE,          // take our values as-is
+		0,                 // no extra data between each position
+		0  // 
+		);
+	/* Push each element in buffer_vertices to the vertex shader */
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDisableVertexAttribArray(attribute_coord2d);
+
+	glutSwapBuffers();
 }
 void free_resources()
 {
-	 glDeleteProgram(program);
+	glDeleteProgram(program);
+	glDeleteBuffers(1, &vbo_triangle);
 }
 int main (int argc, char * argv[])
 {
 	// GLUT-related initialization mechanizm
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH );
+	glutInitDisplayMode(GLUT_RGBA |GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH );
 	glutInitWindowSize(640, 480);
 	glutCreateWindow("Mirek's first window ");
 	//extension wrangler ninit
