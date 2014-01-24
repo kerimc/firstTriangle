@@ -8,7 +8,7 @@
 
 // GLOBALS
 GLuint program;
-GLint attribute_coord2d;
+GLint attribute_vertexCoord;
 GLuint vbo_triangle;
 
 int init_resources()
@@ -21,13 +21,12 @@ int init_resources()
 #else
 		"#version 130 \n"
 #endif
-	//attribute vec3 coord2d; \n"
-		"in vec4 position; \n"
-		"out vec4 color; \n"
+
+		"attribute vec4 position; \n"
+		"varying vec4 color; \n"
 		"void main() { \n"
-	// gl_Position = vec4(coord2d, 1.0); \n"
 			"gl_Position = position; \n"
-		" color = position; \n"
+		" color = position / 0.3; \n"
 	
 		"} \n";
 	glShaderSource(vs, 1, &vsSource, NULL);
@@ -47,7 +46,7 @@ int init_resources()
 	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
 	const char * fsSource =
 		"#version 130           \n"
-		" in vec4 color; \n"
+		" varying vec4 color; \n"
 		"void main(void) {       \n "
 		   "  gl_FragColor = color; \n"
 	/*	" gl_FragColor[0] = gl_FragCoord.x/640.0; \n"
@@ -90,8 +89,8 @@ int init_resources()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), 
 		triangle_vertices, GL_STATIC_DRAW);
 	const char* attribute_name = "position";
-	attribute_coord2d = glGetAttribLocation(program, attribute_name);
-	if (attribute_coord2d == -1) {
+	attribute_vertexCoord = glGetAttribLocation(program, attribute_name);
+	if (attribute_vertexCoord == -1) {
 		fprintf(stderr, "Could not bind attribute %s\n", attribute_name);
 		return 0;
 	}
@@ -103,16 +102,16 @@ void onDisplay()
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	/* Clear the background as white */
-	glClearColor(1.0, 1.0, 1.0, 1.0);
+	glClearColor(0.0, 1.0, 1.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glUseProgram(program);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
-	glEnableVertexAttribArray(attribute_coord2d);
+	glEnableVertexAttribArray(attribute_vertexCoord);
 
 	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
 	glVertexAttribPointer(
-		attribute_coord2d, // attribute
+		attribute_vertexCoord, // attribute
 		4,                 // number of elements per vertex, here (x,y, z)
 		GL_FLOAT,          // the type of each element
 		GL_FALSE,          // take our values as-is
@@ -121,7 +120,7 @@ void onDisplay()
 		);
 	/* Push each element in buffer_vertices to the vertex shader */
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glDisableVertexAttribArray(attribute_coord2d);
+	glDisableVertexAttribArray(attribute_vertexCoord);
 
 	glutSwapBuffers();
 }
