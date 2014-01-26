@@ -8,7 +8,7 @@
 
 // GLOBALS
 GLuint program;
-GLint attribute_vertexCoord;
+GLint attribute_vertexCoord, attribute_vertexColor;
 GLuint vbo_triangle;
 
 int init_resources()
@@ -23,10 +23,11 @@ int init_resources()
 #endif
 
 		"attribute vec4 position; \n"
+		" attribute vec3 vertexColor; \n"
 		"varying vec4 color; \n"
 		"void main() { \n"
 			"gl_Position = position; \n"
-		" color = position / 0.3; \n"
+			" color = vec4(vertexColor.r,vertexColor.g, vertexColor.b, 1.0) ; \n"
 	
 		"} \n";
 	glShaderSource(vs, 1, &vsSource, NULL);
@@ -48,7 +49,7 @@ int init_resources()
 		"#version 130           \n"
 		" varying vec4 color; \n"
 		"void main(void) {       \n "
-		   "  gl_FragColor = color; \n"
+		"  gl_FragColor =  color ; \n"
 	/*	" gl_FragColor[0] = gl_FragCoord.x/640.0; \n"
 		"gl_FragColor[1] = gl_FragCoord.y/480.0; \n"
 		"gl_FragColor[2] = 0.5; \n"
@@ -79,9 +80,9 @@ int init_resources()
 
 	-----------------------------------------------*/
 	GLfloat triangle_vertices[] = {
-		0.0,  0.8, 1.0, 1.0,
-		-0.8, -0.8, 0.0, 1.0,
-		0.8, -0.8, -1.0, 1.0,
+		0.0,  0.8, 1.0, 1.0, 1.0, 0.0, 0.0,
+		-0.8, -0.8, 0.0, 1.0, 0.0, 1.0, 0.0,
+		0.8, -0.8, -1.0, 1.0, 0.0, 0.0, 1.0,
 
 	};
 	glGenBuffers(1, &vbo_triangle);
@@ -94,6 +95,12 @@ int init_resources()
 		fprintf(stderr, "Could not bind attribute %s\n", attribute_name);
 		return 0;
 	}
+	const char* attribute_name1 = "vertexColor";
+	attribute_vertexColor = glGetAttribLocation(program, attribute_name1);
+	if (attribute_vertexColor == -1) {
+		fprintf(stderr, "Could not bind attribute %s\n", attribute_name1);
+		return 0;
+	}
 
 	return 1;
 }
@@ -102,12 +109,13 @@ void onDisplay()
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	/* Clear the background as white */
-	glClearColor(0.0, 1.0, 1.0, 1.0);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glUseProgram(program);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
 	glEnableVertexAttribArray(attribute_vertexCoord);
+	glEnableVertexAttribArray(attribute_vertexColor);
 
 	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
 	glVertexAttribPointer(
@@ -115,8 +123,16 @@ void onDisplay()
 		4,                 // number of elements per vertex, here (x,y, z)
 		GL_FLOAT,          // the type of each element
 		GL_FALSE,          // take our values as-is
-		0,                 // no extra data between each position
-		0  // 
+		7 * sizeof(GLfloat),                 // each element appears every xx bytes
+		0									 //  offset of the first element
+		);
+	glVertexAttribPointer(
+		attribute_vertexColor, // attribute
+		3,                 // number of elements per vertex, here (x,y, z)
+		GL_FLOAT,          // the type of each element
+		GL_FALSE,          // take our values as-is
+		7 * sizeof(GLfloat),                 // each element appears every xx bytes
+		(GLvoid*) (4 * sizeof(GLfloat))		 //  offset of the first element
 		);
 	/* Push each element in buffer_vertices to the vertex shader */
 	glDrawArrays(GL_TRIANGLES, 0, 3);
