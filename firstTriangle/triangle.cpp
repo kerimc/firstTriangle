@@ -10,11 +10,23 @@
 GLuint program;
 GLint attribute_vertexCoord, attribute_vertexColor;
 GLuint vbo_triangle;
+GLuint xfbBuffer;
+const char** xfbNames;
+int xfbNamesCount;
+int xfbDataSize;
+float xfbData[12];
+
 
 int init_resources()
 {
 	GLint compileOk = GL_FALSE, linkOk = GL_FALSE;
 	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+	bool xfb = glewGetExtension("GL_EXT_transform_feedback");
+	xfbDataSize = 48;
+	xfbNamesCount = 1;
+	xfbNames =(const char**) malloc(sizeof(char*)* xfbNamesCount);
+	xfbNames[0] = "var1";
+	
 	const char * vsSource = 
 #ifdef GL_ES_VERSION_2_0
 		"#version 100 \n"
@@ -25,9 +37,11 @@ int init_resources()
 		"attribute vec4 position; \n"
 		" attribute vec3 vertexColor; \n"
 		"varying vec4 color; \n"
+		"out vec4 var1; \n"
 		"void main() { \n"
 			"gl_Position = position; \n"
 			" color = vec4(vertexColor.r,vertexColor.g, vertexColor.b, 1.0) ; \n"
+			" var1 = position; \n"
 	
 		"} \n";
 	glShaderSource(vs, 1, &vsSource, NULL);
@@ -68,9 +82,13 @@ int init_resources()
 		return 0;
 	}
 	program = glCreateProgram();
+	
+	glTransformFeedbackVaryings(program, 1,xfbNames, GL_INTERLEAVED_ATTRIBS);
 	glAttachShader(program, vs);
 	glAttachShader(program, fs);
+	
 	glLinkProgram(program);
+	
 	glGetProgramiv(program, GL_LINK_STATUS, &linkOk);
 	if (!linkOk) {
 		fprintf(stderr, "glLinkProgram:");
@@ -85,6 +103,9 @@ int init_resources()
 		0.8, -0.8, -1.0, 1.0, 0.0, 0.0, 1.0,
 
 	};
+	
+
+
 	glGenBuffers(1, &vbo_triangle);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), 
@@ -101,6 +122,12 @@ int init_resources()
 		fprintf(stderr, "Could not bind attribute %s\n", attribute_name1);
 		return 0;
 	}
+	
+	glGenBuffers(1, &xfbBuffer);
+	glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, xfbBuffer);
+	glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER, 144,NULL, GL_DYNAMIC_DRAW);
+	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, xfbBuffer);
+	
 
 	return 1;
 }
@@ -111,7 +138,7 @@ void onDisplay()
 	/* Clear the background as white */
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
-
+	
 	glUseProgram(program);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
 	glEnableVertexAttribArray(attribute_vertexCoord);
@@ -135,13 +162,20 @@ void onDisplay()
 		(GLvoid*) (4 * sizeof(GLfloat))		 //  offset of the first element
 		);
 	/* Push each element in buffer_vertices to the vertex shader */
+	glBeginTransformFeedback(GL_TRIANGLES);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, 48, xfbData);
+	glEndTransformFeedback();
 	glDisableVertexAttribArray(attribute_vertexCoord);
-
+	fprintf(stdout, "xfbbuffer %f %f %f %f\n", xfbData[0],xfbData[1],xfbData[2], xfbData[3]);
+	fprintf(stdout, "xfbbuffer %f %f %f %f\n", xfbData[4],xfbData[5],xfbData[6], xfbData[7]);
+	fprintf(stdout, "xfbbuffer %f %f %f %f\n", xfbData[8],xfbData[9],xfbData[10], xfbData[11]);
 	glutSwapBuffers();
 }
 void free_resources()
 {
+	free(xfbNames);
+	glDeleteBuffers(1,&xfbBuffer);
 	glDeleteProgram(program);
 	glDeleteBuffers(1, &vbo_triangle);
 }
