@@ -1,6 +1,11 @@
 /* use the standard output for fprintf */
 #include <stdio.h>
 #include <stdlib.h>
+/*
+#pragma comment (lib, "glew32s.lib")
+*/
+#define GLEW_STATIC
+
 // use glew instead od gl.h to get all GL prototype
 #include "GL\glew.h"
 // use the freegult library for base windowing setup
