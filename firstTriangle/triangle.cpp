@@ -10,12 +10,18 @@
 #include "GL\glew.h"
 // use the freegult library for base windowing setup
 #include "GL\freeglut.h"
+#include "glm\glm.hpp"
+#include "glm\gtc\matrix_transform.hpp"
+#include "glm\gtc\type_ptr.hpp"
+#include <chrono> 
+
 
 // GLOBALS
 GLuint program;
 GLint attribute_vertexCoord, attribute_vertexColor;
 GLuint vbo_triangle;
 GLuint xfbBuffer;
+std::chrono::time_point<std::chrono::steady_clock> t_start;
 const char** xfbNames;
 int xfbNamesCount;
 int xfbDataSize;
@@ -41,10 +47,11 @@ int init_resources()
 
 		"attribute vec4 position; \n"
 		" attribute vec3 vertexColor; \n"
+		"uniform mat4 mvp; \n"
 		"varying vec4 color; \n"
 		"out vec4 var1; \n"
 		"void main() { \n"
-			"gl_Position = position; \n"
+			"gl_Position = mvp * position; \n"
 			" color = vec4(vertexColor.r,vertexColor.g, vertexColor.b, 1.0) ; \n"
 			" var1 = position; \n"
 	
@@ -104,8 +111,8 @@ int init_resources()
 	-----------------------------------------------*/
 	GLfloat triangle_vertices[] = {
 		0.0,  0.8, 1.0, 1.0, 1.0, 0.0, 0.0,
-		-0.8, -0.8, 0.0, 1.0, 0.0, 1.0, 0.0,
-		0.8, -0.8, -1.0, 1.0, 0.0, 0.0, 1.0,
+		-0.8, -0.8, 1.0, 1.0, 0.0, 1.0, 0.0,
+		0.8, -0.8, 1.0, 1.0, 0.0, 0.0, 1.0,
 
 	};
 	
@@ -138,6 +145,7 @@ int init_resources()
 }
 void onDisplay()
 {
+	
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	/* Clear the background as white */
@@ -168,6 +176,33 @@ void onDisplay()
 		);
 	/* Push each element in buffer_vertices to the vertex shader */
 	glBeginTransformFeedback(GL_TRIANGLES);
+
+	
+	// Calculate transformation
+	auto t_now = std::chrono::high_resolution_clock::now();
+	float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
+
+	glm::mat4 model;
+	model = glm::rotate(
+		model,
+		time * glm::radians(180.0f),
+		glm::vec3(1.0f, 0.0f, 0.0f)
+	);
+	
+	glm::mat4 view = glm::lookAt(
+		glm::vec3(1.2f, 1.2f, 1.2f),
+		glm::vec3(1.0f, 0.0f, 0.0f),
+		glm::vec3(0.0f, 0.0f, 1.0f));
+
+	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 640.0f / 480.0f, 0.10f, 100.0f);
+
+	glm::mat4 mvp = model;
+	//mvp = glm::mat4(1.0);
+
+	glUseProgram(program);
+
+	GLint uniMvp = glGetUniformLocation(program, "mvp");
+	glUniformMatrix4fv(uniMvp, 1, GL_FALSE, glm::value_ptr(mvp));
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, 48, xfbData);
 	glEndTransformFeedback();
@@ -186,6 +221,7 @@ void free_resources()
 }
 int main (int argc, char * argv[])
 {
+	t_start = std::chrono::high_resolution_clock::now();
 	// GLUT-related initialization mechanizm
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA |GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH );
