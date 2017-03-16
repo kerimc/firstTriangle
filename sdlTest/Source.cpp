@@ -298,28 +298,35 @@ void render()
 		//Set index data and render
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIBO);
 		GLint uniMvp = glGetUniformLocation(gProgramID, "mvp");
-		glm::mat4 model(1.0);
-		rot1 += 10.1;
-		//if (rot1 > 100)  rot1 = 0;
-		model = glm::rotate(
-			model,
-			glm::radians( rot1),
-			glm::vec3(1.0f, 1.0f, 0.0f)
-		);
-		model = glm::scale(model, glm::vec3(1.0, 1.0f, 1.0));
 		
+		for (float y = -2.0; y < 3.0f; y = y + 1.1f) {
+			for (float x = -2.0; x < 3.0f; x = x + 1.1f) {
+				glm::mat4 model(1.0);
+				model = glm::scale(model, glm::vec3(0.2, 0.2f, 0.2));
+				model = glm::translate(model, glm::vec3(x, y, 0.0f));
 
-		glm::mat4 view = glm::lookAt(
-			glm::vec3(0.0f, 0.0f, 80.0f + zoom), // the position of your camera, in world space
-			glm::vec3(0.0f, 0.0f, 0.0f), // where you want to look at, in world space
-			glm::vec3(0.0f, 1.0f, 0.0f)); //upp
+				rot1 += 10.1;
+				//if (rot1 > 100)  rot1 = 0;
+				model = glm::rotate(
+					model,
+					glm::radians(rot1),
+					glm::vec3(1.0f, 0.0f, 0.0f)
+				);
 
-		glm::mat4 proj = glm::perspective(glm::radians(55.0f), 640.0f / 480.0f, 0.1f, 200.0f);
 
-		glm::mat4 mvp = proj * view * model ;
-		glUniformMatrix4fv(uniMvp, 1, GL_FALSE, glm::value_ptr(mvp));
-		glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
 
+				glm::mat4 view = glm::lookAt(
+					glm::vec3(0.0f, 0.0f, 80.0f + zoom), // the position of your camera, in world space
+					glm::vec3(0.0f, 0.0f, 0.0f), // where you want to look at, in world space
+					glm::vec3(0.0f, 1.0f, 0.0f)); //upp
+
+				glm::mat4 proj = glm::perspective(glm::radians(55.0f), 640.0f / 480.0f, 0.1f, 200.0f);
+
+				glm::mat4 mvp = proj * view * model;
+				glUniformMatrix4fv(uniMvp, 1, GL_FALSE, glm::value_ptr(mvp));
+				glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
+			}
+		}
 		//Disable vertex position
 		glDisableVertexAttribArray(gVertexPos2DLocation);
 
