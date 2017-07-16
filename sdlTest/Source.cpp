@@ -1,19 +1,181 @@
 /*This source code copyrighted by Lazy Foo' Productions (2004-2015)
 and may not be redistributed without written permission.*/
-
+#include "include\AntTweakBar.h"
 //Using SDL, SDL OpenGL, GLEW, standard IO, and strings
 #include "include\sdl\SDL.h"
 
-#define GLEW_STATIC
-#include "include\GL\glew.h"
-
 #include "include\sdl\SDL_opengl.h"
-#include "include\GL\glut.h"
+
 #include "include\glm\glm.hpp"
 #include "include\glm\gtc\matrix_transform.hpp"
 #include "include\glm\gtc\type_ptr.hpp"
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <string>
+
+#ifdef _WIN32
+#   include <windows.h> // required by gl.h
+#endif
+#include <GL/gl.h>
+#include <GL/glu.h>
+
+//In this example, we draw a simple rotating square using the OpenGL core profile
+// (which requires much more code than with the compatibility profile).
+// A tweak bar is created to allow the user to change the color of the 
+// rectangle and see its rotation.
+
+// Part of OpenGL core interface is not directly accessible from the common
+// OpenGL header and library (at least on windows) so we have to retrieve the
+// core functions using glGetProcAddress. These functions are prefixed by
+// underscore to avoid possible confict if a modified gl.h has been installed.
+
+#ifdef _WIN32
+#   define glGetProcAddress wglGetProcAddress
+#else
+#   define GLXglXEXT_LEGACY
+#   include <GL/glx.h>
+#   define glGetProcAddress glXGetProcAddressARB
+#endif
+#ifndef APIENTRY
+#   define APIENTRY
+#endif
+typedef GLuint(APIENTRY *PFNGLCreateShader)(GLenum type);
+typedef void (APIENTRY *PFNGLDeleteShader)(GLuint shader);
+typedef void (APIENTRY *PFNGLShaderSource)(GLuint shader, GLsizei count, const char* *str, const GLint *length);
+typedef void (APIENTRY *PFNGLCompileShader)(GLuint shader);
+typedef void (APIENTRY *PFNGLAttachShader)(GLuint program, GLuint shader);
+typedef GLuint(APIENTRY *PFNGLCreateProgram)(void);
+typedef void (APIENTRY *PFNGLLinkProgram)(GLuint program);
+typedef void (APIENTRY *PFNGLUseProgram)(GLuint program);
+typedef void (APIENTRY *PFNGLDeleteProgram)(GLuint program);
+typedef void (APIENTRY *PFNGLGenBuffers)(GLsizei n, GLuint *buffers);
+typedef void (APIENTRY *PFNGLBindBuffer)(GLenum target, GLuint buffer);
+typedef void (APIENTRY *PFNGLVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+typedef void (APIENTRY *PFNGLEnableVertexAttribArray)(GLuint index);
+typedef void (APIENTRY *PFNGLGenVertexArrays)(GLsizei n, GLuint *arrays);
+typedef void (APIENTRY *PFNGLBindVertexArray)(GLuint array);
+typedef void (APIENTRY *PFNGLDeleteVertexArrays)(GLsizei n, const GLuint *arrays);
+typedef GLint(APIENTRY *PFNGLGetAttribLocation)(GLuint program, const char *name);
+typedef GLint(APIENTRY *PFNGLGetUniformLocation)(GLuint program, const char *name);
+typedef void (APIENTRY *PFNGLUniform1f)(GLint location, GLfloat v0);
+typedef void (APIENTRY *PFNGLUniform3f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void (APIENTRY *PFNGLUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void (APIENTRY *PFNGLBufferData)(GLenum target, ptrdiff_t size, const GLvoid *data, GLenum usage);
+typedef void (APIENTRY *PFNGLDeleteBuffers)(GLsizei n, const GLuint *buffers);
+
+
+//GLAPI void APIENTRY glGetShaderiv (GLuint shader, GLenum pname, GLint *params);
+typedef void (APIENTRY *PFNGLGetShaderiv)(GLuint shader, GLenum pname, GLint *params);
+//typedef void (APIENTRYP PFNGLGETPROGRAMIVPROC) (GLuint program, GLenum pname, GLint *params);
+typedef void (APIENTRYP PFNGLGetProgramiv) (GLuint program, GLenum pname, GLint *params);
+// typedef GLboolean (APIENTRYP PFNGLISSHADERPROC) (GLuint shader);
+typedef GLboolean (APIENTRYP PFNGLISSHADERPROC) (GLuint shader);
+// typedef void (APIENTRYP PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef void (APIENTRYP PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+// typedef void (APIENTRYP PFNGLUNIFORMMATRIX4FVPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void (APIENTRYP PFNGLUNIFORMMATRIX4FVPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+// typedef void (APIENTRYP PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void (APIENTRYP PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+//typedef GLboolean (APIENTRYP PFNGLISPROGRAMPROC) (GLuint program);
+typedef GLboolean(APIENTRYP PFNGLISPROGRAMPROC) (GLuint program);
+// typedef void (APIENTRYP PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef void (APIENTRYP PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+
+typedef void (APIENTRYP PFNGLCLEARCOLORPROC) (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+PFNGLCreateShader glCreateShader;
+PFNGLDeleteShader glDeleteShader;
+PFNGLShaderSource glShaderSource;
+PFNGLCompileShader glCompileShader;
+PFNGLAttachShader glAttachShader;
+PFNGLCreateProgram glCreateProgram;
+PFNGLLinkProgram glLinkProgram;
+PFNGLUseProgram glUseProgram;
+PFNGLDeleteProgram glDeleteProgram;
+PFNGLGenBuffers glGenBuffers;
+PFNGLBindBuffer glBindBuffer;
+PFNGLVertexAttribPointer glVertexAttribPointer;
+PFNGLEnableVertexAttribArray glEnableVertexAttribArray;
+PFNGLGenVertexArrays glGenVertexArrays;
+PFNGLBindVertexArray glBindVertexArray;
+PFNGLDeleteVertexArrays glDeleteVertexArrays;
+PFNGLGetAttribLocation glGetAttribLocation;
+PFNGLGetUniformLocation glGetUniformLocation;
+PFNGLUniform1f glUniform1f;
+PFNGLUniform3f glUniform3f;
+PFNGLUniform4f glUniform4f;
+PFNGLBufferData glBufferData;
+PFNGLDeleteBuffers glDeleteBuffers;
+PFNGLGetShaderiv glGetShaderiv;
+PFNGLGetProgramiv glGetProgramiv;
+PFNGLISSHADERPROC glIsShader;
+PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog;
+PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
+PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray;
+PFNGLISPROGRAMPROC glIsProgram;
+PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog;
+
+
+#ifndef GL_ARRAY_BUFFER
+#   define GL_ARRAY_BUFFER      0x8892
+#endif
+#ifndef GL_STATIC_DRAW
+#   define GL_STATIC_DRAW       0x88E4
+#endif
+#ifndef GL_VERTEX_SHADER
+#   define GL_VERTEX_SHADER     0x8B31
+#endif
+#ifndef GL_FRAGMENT_SHADER
+#   define GL_FRAGMENT_SHADER   0x8B30
+#endif
+
+int LoadGLCoreFunctions()
+{
+	glCreateShader = (PFNGLCreateShader)glGetProcAddress("glCreateShader");
+	glDeleteShader = (PFNGLDeleteShader)glGetProcAddress("glDeleteShader");
+	glShaderSource = (PFNGLShaderSource)glGetProcAddress("glShaderSource");
+	glCompileShader = (PFNGLCompileShader)glGetProcAddress("glCompileShader");
+	glAttachShader = (PFNGLAttachShader)glGetProcAddress("glAttachShader");
+	glCreateProgram = (PFNGLCreateProgram)glGetProcAddress("glCreateProgram");
+	glLinkProgram = (PFNGLLinkProgram)glGetProcAddress("glLinkProgram");
+	glUseProgram = (PFNGLUseProgram)glGetProcAddress("glUseProgram");
+	glDeleteProgram = (PFNGLDeleteProgram)glGetProcAddress("glDeleteProgram");
+	glGenBuffers = (PFNGLGenBuffers)glGetProcAddress("glGenBuffers");
+	glBindBuffer = (PFNGLBindBuffer)glGetProcAddress("glBindBuffer");
+	glVertexAttribPointer = (PFNGLVertexAttribPointer)glGetProcAddress("glVertexAttribPointer");
+	glEnableVertexAttribArray = (PFNGLEnableVertexAttribArray)glGetProcAddress("glEnableVertexAttribArray");
+	glGenVertexArrays = (PFNGLGenVertexArrays)glGetProcAddress("glGenVertexArrays");
+	glBindVertexArray = (PFNGLBindVertexArray)glGetProcAddress("glBindVertexArray");
+	glDeleteVertexArrays = (PFNGLDeleteVertexArrays)glGetProcAddress("glDeleteVertexArrays");
+	glGetAttribLocation = (PFNGLGetAttribLocation)glGetProcAddress("glGetAttribLocation");
+	glGetUniformLocation = (PFNGLGetUniformLocation)glGetProcAddress("glGetUniformLocation");
+	glUniform1f = (PFNGLUniform1f)glGetProcAddress("glUniform1f");
+	glUniform3f = (PFNGLUniform3f)glGetProcAddress("glUniform3f");
+	glBufferData = (PFNGLBufferData)glGetProcAddress("glBufferData");
+	glDeleteBuffers = (PFNGLDeleteBuffers)glGetProcAddress("glDeleteBuffers");
+
+	glGetShaderiv = (PFNGLGetShaderiv)glGetProcAddress("glGetShaderiv");
+	glGetProgramiv = (PFNGLGetProgramiv)glGetProcAddress("glGetProgramiv");
+	glIsShader = (PFNGLISSHADERPROC)glGetProcAddress("glIsShader");
+	glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)glGetProcAddress("glGetShaderInfoLog");
+	glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)glGetProcAddress("glUniformMatrix4fv");
+	glDisableVertexAttribArray =(PFNGLDISABLEVERTEXATTRIBARRAYPROC)glGetProcAddress("glDisableVertexAttribArray");
+	glIsProgram = (PFNGLISPROGRAMPROC)glGetProcAddress("glIsProgram");
+	glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)glGetProcAddress("glGetProgramInfoLog");
+
+
+	if (glCreateShader == NULL || glDeleteShader == NULL || glShaderSource == NULL || glCompileShader == NULL
+		|| glAttachShader == NULL || glCreateProgram == NULL || glLinkProgram == NULL || glUseProgram == NULL
+		|| glDeleteProgram == NULL || glGenBuffers == NULL || glBindBuffer == NULL || glVertexAttribPointer == NULL
+		|| glEnableVertexAttribArray == NULL || glGenVertexArrays == NULL || glBindVertexArray == NULL
+		|| glDeleteVertexArrays == NULL || glGetAttribLocation == NULL || glGetUniformLocation == NULL
+		|| glUniform1f == NULL || glUniform3f == NULL || glBufferData == NULL || glDeleteBuffers == NULL)
+		return 0;
+	else
+		return 1;
+}
+
+
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 640;
@@ -52,14 +214,37 @@ bool gRenderQuad = true;
 float zoom = 0.0f;
 float rot1 = 0.0f;
 
+//
+float angle = 0, quat[4];
+float color[] = { 0.8f, 1.0f, 0.2f };
+
 //Graphics program
 GLuint gProgramID = 0;
 GLint gVertexPos2DLocation = -1;
+GLint gVertexColorLocation = -1;
 GLuint gVBO = 0;
 GLuint gIBO = 0;
+GLuint gCBO = 0;
+TwBar *CreateTweakBar()
+{
+	TwBar *bar;
 
+	// Create a tweak bar
+	bar = TwNewBar("TweakBar");
+	TwDefine(" GLOBAL help='This example shows how to integrate AntTweakBar with SDL and OpenGL Core Profile.\n' "); // Message added to the help bar.
+
+																													 // Add variables
+	TwAddVarRW(bar, "Rotation", TW_TYPE_QUAT4F, &quat, "opened=true help='Rectangle rotation axisz=-z' ");
+	TwAddVarRW(bar, "Color", TW_TYPE_COLOR3F, &color, "opened=true help='Rectangle color' ");
+	TwAddVarRW(bar, "Zoom", TW_TYPE_FLOAT, &zoom, "help='sssssssssssss'");
+
+	return bar;
+}
 bool init()
 {
+
+	LoadGLCoreFunctions();
+
 	//Initialization flag
 	bool success = true;
 
@@ -71,8 +256,10 @@ bool init()
 	}
 	else
 	{
-		//Use OpenGL 3.1 core
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+
+	
+		//Use OpenGL 4.1 core
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
@@ -94,12 +281,12 @@ bool init()
 			}
 			else
 			{
-				//Initialize GLEW
-				glewExperimental = GL_TRUE;
-				GLenum glewError = glewInit();
-				if (glewError != GLEW_OK)
+				//Initialize GL Functions
+				int loadError = 0;
+				loadError = LoadGLCoreFunctions();
+				if (loadError == 1)
 				{
-					printf("Error initializing GLEW! %s\n", glewGetErrorString(glewError));
+					printf("Error initializing GL function pointers! \n");
 				}
 
 				//Use Vsync
@@ -107,6 +294,14 @@ bool init()
 				{
 					printf("Warning: Unable to set VSync! SDL Error: %s\n", SDL_GetError());
 				}
+
+				if (!TwInit(TW_OPENGL_CORE, NULL)) {
+					fprintf(stderr, "AntTweakBar initialization failed: %s\n", TwGetLastError());
+					SDL_Quit();
+					exit(1);
+				}
+				// Tell the window size to AntTweakBar
+				TwWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
 
 				//Initialize OpenGL
 				if (!initGL())
@@ -117,9 +312,12 @@ bool init()
 			}
 		}
 	}
+	
 
 	return success;
 }
+
+
 
 bool initGL()
 {
@@ -137,9 +335,12 @@ bool initGL()
 	{
 		"#version 140\n"
 		"in vec4 LVertexPos;\n"
+		"in vec4 LVertexColor;\n"
+		"out vec4 vcolor;\n"
 		"uniform mat4 mvp;"
 		"void main() { \n"
 		"gl_Position = mvp *  LVertexPos;\n"
+		"vcolor = LVertexColor; \n"
 	"} \n"
 	};
 
@@ -171,9 +372,12 @@ bool initGL()
 		const GLchar* fragmentShaderSource[] =
 		{
 			"#version 140\n"
+			" in vec4 vcolor; \n"
 			"out vec4 LFragment;\n"
+			"uniform vec3 sumCo;"
 			"void main() {\n"
-			"LFragment = vec4( 0.0, 1.0, 0.0, 1.0 );\n"
+			//"LFragment = vec4( 0.0, 1.0, 0.0, 1.0 );\n"
+			"LFragment = vcolor + vec4(sumCo.r, sumCo.g , sumCo.b, 1.0);\n"
 			"}\n"
 		};
 
@@ -219,7 +423,14 @@ bool initGL()
 					printf("LVertexPos is not a valid glsl program variable!\n");
 					success = false;
 				}
+				gVertexColorLocation = glGetAttribLocation(gProgramID, "LVertexColor");
+				if (gVertexColorLocation == -1)
+				{
+					printf("LVertexColor is not a valid glsl program variable!\n");
+					success = false;
+				}
 				else
+		
 				{
 					//Initialize clear color
 					glClearColor(0.f, 0.f, 0.f, 1.f);
@@ -227,6 +438,11 @@ bool initGL()
 					//VBO data
 					GLfloat vertexData[] =
 					{
+						-0.5f, -0.5f, 0.5f, 1.0f,
+						0.5f, -0.5f, 0.5f, 1.0f,
+						0.5f,  0.5f, 0.5f, 1.0f,
+						-0.5f,  0.5f, 0.5f, 1.0f,
+
 						-0.5f, -0.5f, -0.5f, 1.0f,
 						0.5f, -0.5f, -0.5f, 1.0f,
 						0.5f,  0.5f, -0.5f, 1.0f,
@@ -234,17 +450,38 @@ bool initGL()
 					};
 
 					//IBO data
-					GLuint indexData[] = { 0, 1, 2, 3 };
+					GLuint indexData[] = { 0, 1, 2, 3,
+										    3, 7, 4,0,
+											0, 4, 5, 1,
+											6, 5 ,2, 1};
+
+					//color vertex
+					GLfloat vertexColorData[] =
+					{
+						0.0f, 1.0f, 0.0f, 1.0f,
+						0.0f, 1.0f, 0.0f, 1.0f,
+						0.0f, 1.0f, 0.0f, 1.0f,
+						0.0f, 1.0f, 0.0f, 1.0f,
+
+						1.0f, 0.0f, 0.0f, 1.0f,
+						1.0f, 0.0f, 0.0f, 1.0f,
+						1.0f, 0.0f, 0.0f, 1.0f,
+						1.0f, 0.0f, 0.0f, 1.0f,
+					};
 
 					//Create VBO
 					glGenBuffers(1, &gVBO);
 					glBindBuffer(GL_ARRAY_BUFFER, gVBO);
-					glBufferData(GL_ARRAY_BUFFER, 4 * 4 * sizeof(GLfloat), vertexData, GL_STATIC_DRAW);
+					glBufferData(GL_ARRAY_BUFFER, 8 * 4 * sizeof(GLfloat), vertexData, GL_STATIC_DRAW);
 
+					//Create IBO
+					glGenBuffers(1, &gCBO);
+					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gCBO);
+					glBufferData(GL_ELEMENT_ARRAY_BUFFER, 8*4 * sizeof(GLfloat), vertexColorData, GL_STATIC_DRAW);
 					//Create IBO
 					glGenBuffers(1, &gIBO);
 					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIBO);
-					glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+					glBufferData(GL_ELEMENT_ARRAY_BUFFER, 16 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
 				}
 			}
 		}
@@ -295,24 +532,30 @@ void render()
 		glBindBuffer(GL_ARRAY_BUFFER, gVBO);
 		glVertexAttribPointer(gVertexPos2DLocation, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), NULL);
 
+		glEnableVertexAttribArray(gVertexColorLocation);
+		//Set vertex data
+		glBindBuffer(GL_ARRAY_BUFFER, gCBO);
+		glVertexAttribPointer(gVertexColorLocation, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), NULL);
+
 		//Set index data and render
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIBO);
 		GLint uniMvp = glGetUniformLocation(gProgramID, "mvp");
+		GLint unisumCo = glGetUniformLocation(gProgramID, "sumCo");
 		
-		for (float y = -2.0; y < 3.0f; y = y + 1.1f) {
-			for (float x = -2.0; x < 3.0f; x = x + 1.1f) {
+		//for (float y = -2.0; y < 3.0f; y = y + 1.1f) {
+		//	for (float x = -2.0; x < 3.0f; x = x + 1.1f) {
 				glm::mat4 model(1.0);
 				model = glm::scale(model, glm::vec3(0.2, 0.2f, 0.2));
-				model = glm::translate(model, glm::vec3(x, y, 0.0f));
+				//model = glm::translate(model, glm::vec3(x, y, 0.0f));
 
-				rot1 += 10.1;
 				//if (rot1 > 100)  rot1 = 0;
 				model = glm::rotate(
 					model,
 					glm::radians(rot1),
-					glm::vec3(1.0f, 0.0f, 0.0f)
+					glm::vec3(1.0f, 1.0f, 0.0f)
 				);
-
+				
+				//model = glm::translate(model, glm::vec3(quat[0], quat[0], quat[0]));
 
 
 				glm::mat4 view = glm::lookAt(
@@ -324,26 +567,31 @@ void render()
 
 				glm::mat4 mvp = proj * view * model;
 				glUniformMatrix4fv(uniMvp, 1, GL_FALSE, glm::value_ptr(mvp));
-				glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
-			}
-		}
+				glUniform3f(unisumCo,  color[0], color[1], color[2]);
+				glDrawElements(GL_TRIANGLE_FAN, 8, GL_UNSIGNED_INT, NULL);
+
+				//}
+			//}
+		//}
 		//Disable vertex position
 		glDisableVertexAttribArray(gVertexPos2DLocation);
+		glDisableVertexAttribArray(gVertexColorLocation);
 
 		//Unbind program
 		glUseProgram(NULL);
 	}
+	
 }
 
 void close()
 {
 	//Deallocate program
 	glDeleteProgram(gProgramID);
-
+	TwTerminate();
 	//Destroy window	
 	SDL_DestroyWindow(gWindow);
 	gWindow = NULL;
-
+	
 	//Quit SDL subsystems
 	SDL_Quit();
 }
@@ -423,41 +671,56 @@ int main(int argc, char* args[])
 		printf("Failed to initialize!\n");
 	}
 	else
-	{
+	{  
+		// Create a tweak bar
+		CreateTweakBar();
 		//Main loop flag
 		bool quit = false;
 
-		//Event handler
-		SDL_Event e;
-
+		
 		//Enable text input
 		SDL_StartTextInput();
+		
 
 		//While application is running
 		while (!quit)
 		{
-			//Handle events on queue
-			while (SDL_PollEvent(&e) != 0)
-			{
-				//User requests quit
-				if (e.type == SDL_QUIT)
-				{
-					quit = true;
-				}
-				//Handle keypress with current mouse position
-				else if (e.type == SDL_TEXTINPUT)
-				{
-					int x = 0, y = 0;
-					SDL_GetMouseState(&x, &y);
-					handleKeys(e.text.text[0], x, y);
-				}
-			}
-
-			//Render quad
+			rot1 += (float)SDL_GetTicks() / 25.0f * (3.14 / 180.0f);;
 			render();
+			TwDraw();
 
 			//Update screen
 			SDL_GL_SwapWindow(gWindow);
+			//Event handler
+			SDL_Event e;
+			int handled;
+
+			//Handle events on queue
+			while (SDL_PollEvent(&e))
+			{
+				// Send event to AntTweakBar
+				handled = TwEventSDL(&e, SDL_MAJOR_VERSION, SDL_MINOR_VERSION);
+
+				// If event has not been handled by AntTweakBar, process it
+				//User requests quit
+				if (!handled)
+				{
+					if (e.type == SDL_QUIT)
+					{
+						quit = true;
+					}
+
+					//Handle keypress with current mouse position
+					else if (e.type == SDL_TEXTINPUT)
+					{
+						int x = 0, y = 0;
+						SDL_GetMouseState(&x, &y);
+						handleKeys(e.text.text[0], x, y);
+					}
+				}
+			}
+
+			
 		}
 
 		//Disable text input
